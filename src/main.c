@@ -156,7 +156,7 @@ int main() {
 
     printf("(3) Once we binded, we then need to kickstart the socket to be in a listening state!\n\n");
     const int maxConnectionsAllowed = 5;
-    listen(fd, maxConnectionsAllowed);
+    int listenStatus = listen(fd, maxConnectionsAllowed);
     
     printf("(4) Now we then accept any incoming connections on the queue.\n");
     /*
@@ -172,8 +172,6 @@ int main() {
     // Here we need to define our connection pool table.
     // - Insert Table Here -
 
-    int kqueueFd = kqueue();
-    printf("Created \"kqueue\" successfully!\n");
     /*
         Kernel Level Events dealing with Sockets:
         EVFILT_READ - 
@@ -214,16 +212,43 @@ int main() {
     */
 
 
+    /*
+        *************** SINGLE EVENT THREAD EVENT LOOP. ***************
+        Here we have our single-thread execution architecture.
+        This is our main event loop that runs on one thread.
+    */
+    int kqueueFD = kqueue();
+    printf("Created \"kqueue\" successfully!\n");
 
     struct kevent eventTypeA; // Define a the 'kevent' struct
     EV_SET(&eventTypeA, fd, EVFILT_READ, EV_ADD, 0, 0, NULL); // Then we fill the struct out.
-    kevent(kqueueFd, &eventTypeA, 1, NULL, 0, NULL);
-   /*
-        Here we have our single-thread execution architecture.
-        This is our main event loop that runs on one thread.
-   */
-    
+    kevent(kqueueFD, &eventTypeA, 1, NULL, 0, NULL);
+
     while(TRUE) {
+        // Lets try a simple poll.
+        struct kevent event;
+        int eventStatus = kevent(kqueueFD, NULL, 0, &event, 1, NULL); // This blocks the thread.
+
+        if (eventStatus == -1) {
+            printf("Event Status ran into an error (returned -1)!\n");
+            break;
+        }
+
+        if (eventStatus > 0) {
+            printf("Event from kqueue returned withs status: %d.\n", eventStatus);
+            printf("We officially got an 'EVFILT_READ event!\n");
+
+            // If this is not in the connection table, we have to accept.
+            struct sockaddr_in peer;
+            socklen_t peerSize = sizeof(peer);
+            socklen_t *peerSizePnter = &peerSize;
+            struct sockaddr_in *peerPointer = &peer;
+            struct sockaddr *basePeerPointer = (struct sockaddr *) peerPointer;
+            int acceptedConnection = accept(fd, basePeerPointer, peerSizePnter);
+
+            printf("Accepted connection with file descriptor client socket: %d.\n", acceptedConnection);
+        }
+
         // We create kevent arrays
         // When the load them onto the kevent
         // Iterate through them
