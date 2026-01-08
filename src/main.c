@@ -224,8 +224,20 @@ int main() {
     EV_SET(&eventTypeA, fd, EVFILT_READ, EV_ADD, 0, 0, NULL); // Then we fill the struct out.
     kevent(kqueueFD, &eventTypeA, 1, NULL, 0, NULL);
 
+    /*
+        Client Connections Array
+    */
+    int maxClientConnections = 1000;
+    int clientConnectionPoolFDActiveIndex = 0;
+    int clientConnectionPoolFD[maxClientConnections];
+
+    /*
+        Buffer Data Array for each connection 
+    */
+   int maxBytesForBuffer = 1024;
+   char clientConnectionBufferArray[maxClientConnections][maxBytesForBuffer];
+
     while(TRUE) {
-        // Lets try a simple poll.
         struct kevent event;
         int eventStatus = kevent(kqueueFD, NULL, 0, &event, 1, NULL); // This blocks the thread.
 
@@ -238,7 +250,9 @@ int main() {
             printf("Event from kqueue returned withs status: %d.\n", eventStatus);
             printf("We officially got an 'EVFILT_READ event!\n");
 
-            // If this is not in the connection table, we have to accept.
+            /*
+                Accepting Connections.
+            */
             struct sockaddr_in peer;
             socklen_t peerSize = sizeof(peer);
             socklen_t *peerSizePnter = &peerSize;
@@ -247,6 +261,18 @@ int main() {
             int acceptedConnection = accept(fd, basePeerPointer, peerSizePnter);
 
             printf("Accepted connection with file descriptor client socket: %d.\n", acceptedConnection);
+            printf("Adding to 'clientConnectionPoolFD'!\n");
+            if (clientConnectionPoolFDActiveIndex < maxClientConnections) {
+                clientConnectionPoolFD[clientConnectionPoolFDActiveIndex] = acceptedConnection;
+                clientConnectionPoolFDActiveIndex += 1;
+            } else {
+                printf("We have reached max client connections! New connections will be refused!\n");
+            }
+
+            /*
+                Check if there are any data.
+            */
+           
         }
 
         // We create kevent arrays
